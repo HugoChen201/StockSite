@@ -94,7 +94,7 @@ function openStock(ticker,levels,notes=''){const s=stockBy(ticker);if(!s)return;
 function closeDetail(){state.current=null;state.levels=[];state.notes='';$('#detailView').classList.remove('active');$('#overviewView').classList.remove('hidden');history.replaceState(null,'',location.pathname);scrollTo({top:0,behavior:'smooth'})}
 function renderFlow(){
   const m=MOMOFLOW||{},zh=state.lang==='zh',host=$('#flowContent');if(!host)return;
-  const stamp=$('#flowStamp');if(stamp)stamp.textContent=m.asof?`${t('updated')} ${m.asof}`:'—';
+  const stamp=$('#flowStamp');if(stamp){const when=m.capturedAt||m.asof;stamp.textContent=when?`${t('updated')} ${when}`:'—';}
   const flow=m.flow||[],p=m.pulse||{},h=m.heatmap||{};
   if(!flow.length){host.innerHTML=`<div class="empty">${t('noFlow')}</div>`;return;}
   const tierZh={ELITE:'精英',STRONG:'强',MODERATE:'中等'},quadZh={Leading:'领先',Improving:'改善中',Weakening:'转弱',Lagging:'落后'};
