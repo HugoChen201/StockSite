@@ -26,6 +26,7 @@
       <button class="tab-btn active" type="button" id="overviewTab" data-i18n="overview">Overview</button>
       <button class="tab-btn" type="button" id="tradesTab" data-i18n="potentialTrades">Potential Trades</button>
       <button class="tab-btn" type="button" id="internalsTab" data-i18n="marketInternals">Market Internals</button>
+      <button class="tab-btn" type="button" id="flowTab" data-i18n="flowPulse">Flow &amp; Pulse</button>
       <button class="tab-btn" type="button" id="calendarTab" data-i18n="earningsCalendar">Earnings calendar</button>
     </div>
     <div id="overviewPane">
@@ -75,6 +76,10 @@
     <div class="dashboard-pane" id="internalsPane">
       <div class="pane-intro"><div><h2 data-i18n="marketInternals">Market internals</h2><p data-i18n="internalsDesc">Source-driven closing snapshot for confidence, sentiment, volatility, and ETF flow.</p></div><div class="pane-stamp"><strong>Updated Sep 22, 2026 9:05 AM ET</strong><br><span class="morning-tag" data-i18n="closingSnapshot">Closing snapshot</span></div></div>
       <div class="internals-grid" id="internalsGrid"></div>
+    </div>
+    <div class="dashboard-pane" id="flowPane">
+      <div class="pane-intro"><div><h2 data-i18n="flowPulse">Flow &amp; Pulse</h2><p data-i18n="flowPulseDesc">Top-scored options flow and sector rotation from the MomoEdge terminal.</p></div><div class="pane-stamp"><strong id="flowStamp">—</strong><br><span class="morning-tag">MomoEdge</span></div></div>
+      <div id="flowContent"></div>
     </div>
     <div class="calendar-pane" id="calendarPane">
       <div class="calendar-intro"><div><h2 data-i18n="upcomingEarnings">Next 7 days</h2><p data-i18n="calendarDesc">Only COST reports in the Sep 22–29 window; its options-implied move is shown below.</p></div><div class="calendar-source"><strong>Updated Sep 22, 2026 9:05 AM ET</strong><br><span class="morning-tag" data-i18n="sevenDayWindow">Sep 22–29 window</span></div></div>
@@ -149,6 +154,6 @@
     <p data-i18n="footerDisclaimer">This research dashboard is informational, not investment advice.</p>
   </footer>
 </main>
-<script src="app.js?v=7eeda46"></script>
+<script src="app.js?v=20260923-flow"></script>
 </body>
 </html>
