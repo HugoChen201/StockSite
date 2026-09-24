@@ -10,6 +10,7 @@ Usage: five-minute-update.py [--force]   (--force bypasses the market-hours guar
 """
 
 import json
+import os
 import subprocess
 import sys
 import http.cookiejar
@@ -325,8 +326,11 @@ def main():
                      "QUOTES": quotes, "ASOF": data["ASOF"]}
             patch_path = "/tmp/five-minute-patch.json"
             json.dump(patch, open(patch_path, "w"))
+            # update-data.py takes the shared lock itself; tell it we already hold
+            # it (a child flock on a new fd would block forever against our lock).
+            child_env = dict(os.environ, STOCKSITE_DATA_LOCK="1")
             r = subprocess.run(["python3", "scripts/update-data.py", patch_path], cwd=REPO,
-                               capture_output=True, text=True, timeout=60)
+                               capture_output=True, text=True, timeout=60, env=child_env)
             print(r.stdout.strip() or r.stderr.strip())
             if r.returncode != 0:
                 log("ERROR update-data.py failed: " + r.stderr.strip()[:200])
