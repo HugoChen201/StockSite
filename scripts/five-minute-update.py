@@ -206,144 +206,148 @@ def main():
         print("SKIP market closed")
         return 0
 
-    with locked():
-        git("pull", "--ff-only")
-        data = json.load(open(REPO / "data.json"))
-        stages = []
-        ts = stamp(t0)
+    try:
+        with locked(timeout=50):
+            git("pull", "--ff-only")
+            data = json.load(open(REPO / "data.json"))
+            stages = []
+            ts = stamp(t0)
 
-        # ---------- one batch quote pull for watchlist + internals symbols ----------
-        ysyms, y2t = [], {}
-        for s in data["STOCKS"]:
-            ys = s.get("yahoo_symbol") or s["ticker"]
-            ysyms.append(ys)
-            y2t[ys] = s["ticker"]
-        # also quote earnings-calendar names not in the watchlist (future-proof)
-        have_tickers = {s["ticker"] for s in data["STOCKS"]}
-        for e in data.get("EARNINGS_DATES", []):
-            t = e.get("ticker")
-            if t and t not in have_tickers:
-                ysyms.append(t)
-                y2t[t] = t
-                have_tickers.add(t)
-        etf_list = [s["etf"] for s in data["SECTOR_BREADTH"]]
-        qmap = batch_quotes(ysyms + ["^VIX", "^VIX3M"] + etf_list)
+            # ---------- one batch quote pull for watchlist + internals symbols ----------
+            ysyms, y2t = [], {}
+            for s in data["STOCKS"]:
+                ys = s.get("yahoo_symbol") or s["ticker"]
+                ysyms.append(ys)
+                y2t[ys] = s["ticker"]
+            # also quote earnings-calendar names not in the watchlist (future-proof)
+            have_tickers = {s["ticker"] for s in data["STOCKS"]}
+            for e in data.get("EARNINGS_DATES", []):
+                t = e.get("ticker")
+                if t and t not in have_tickers:
+                    ysyms.append(t)
+                    y2t[t] = t
+                    have_tickers.add(t)
+            etf_list = [s["etf"] for s in data["SECTOR_BREADTH"]]
+            qmap = batch_quotes(ysyms + ["^VIX", "^VIX3M"] + etf_list)
 
-        # ================= STAGE 1: market internals =================
-        mi = data["MARKET_INTERNALS"]
+            # ================= STAGE 1: market internals =================
+            mi = data["MARKET_INTERNALS"]
 
-        # VIX spot + 3M term structure
-        vix, vix3m = qmap.get("^VIX"), qmap.get("^VIX3M")
-        if vix and vix3m:
-            sp, spp = vix[0], vix[1]
-            tp, tpp = vix3m[0], vix3m[1]
-            vt = mi["vixTerm"]
-            vt["spot"] = round(sp, 2)
-            vt["spotChange"] = round(sp - spp, 2)
-            vt["spotChangePct"] = round((sp - spp) / spp * 100, 2)
-            vt["threeMonth"] = round(tp, 2)
-            vt["threeMonthChangePct"] = round((tp - tpp) / tpp * 100, 2)
-            vt["ratio"] = round(tp / sp, 2)
-            vt["state"] = "Contango (calm)" if tp > sp else "Backwardation (stress)"
-            vt["asof"] = ts
-            stages.append("vix")
+            # VIX spot + 3M term structure
+            vix, vix3m = qmap.get("^VIX"), qmap.get("^VIX3M")
+            if vix and vix3m:
+                sp, spp = vix[0], vix[1]
+                tp, tpp = vix3m[0], vix3m[1]
+                vt = mi["vixTerm"]
+                vt["spot"] = round(sp, 2)
+                vt["spotChange"] = round(sp - spp, 2)
+                vt["spotChangePct"] = round((sp - spp) / spp * 100, 2)
+                vt["threeMonth"] = round(tp, 2)
+                vt["threeMonthChangePct"] = round((tp - tpp) / tpp * 100, 2)
+                vt["ratio"] = round(tp / sp, 2)
+                vt["state"] = "Contango (calm)" if tp > sp else "Backwardation (stress)"
+                vt["asof"] = ts
+                stages.append("vix")
 
-        # CNN Fear & Greed
-        score, rating = fear_greed()
-        if score is not None:
-            fg = mi["fearGreed"]
-            fg["value"] = round(score, 2)
-            fg["label"] = rating
-            fg["asof"] = ts
-            stages.append("fearGreed")
+            # CNN Fear & Greed
+            score, rating = fear_greed()
+            if score is not None:
+                fg = mi["fearGreed"]
+                fg["value"] = round(score, 2)
+                fg["label"] = rating
+                fg["asof"] = ts
+                stages.append("fearGreed")
 
-        # Sector breadth heatmap (intraday % vs previous close)
-        n_sec = 0
-        for s in data["SECTOR_BREADTH"]:
-            m = qmap.get(s["etf"])
-            if m:
-                p, prev = m[0], m[1]
-                s["close"] = round(p, 2)
-                s["previous"] = round(prev, 2)
-                s["change"] = round((p - prev) / prev * 100, 2)
-                n_sec += 1
-        if n_sec:
-            data["ASOF"]["sectorBreadth"] = ts
-            stages.append(f"sectors({n_sec})")
+            # Sector breadth heatmap (intraday % vs previous close)
+            n_sec = 0
+            for s in data["SECTOR_BREADTH"]:
+                m = qmap.get(s["etf"])
+                if m:
+                    p, prev = m[0], m[1]
+                    s["close"] = round(p, 2)
+                    s["previous"] = round(prev, 2)
+                    s["change"] = round((p - prev) / prev * 100, 2)
+                    n_sec += 1
+            if n_sec:
+                data["ASOF"]["sectorBreadth"] = ts
+                stages.append(f"sectors({n_sec})")
 
-        # SMI intraday (Don Hays-style, self-computed)
-        series = mi["smi"].get("series", [])
-        if series:
-            val, inputs = spy_intraday_smi(series[-1]["value"])
-            if val is not None:
-                mi["smi"]["intraday"] = val
-                mi["smi"]["intradayAsOf"] = ts
-                mi["smi"]["intradayInputs"] = inputs
-                stages.append("smi")
-        data["ASOF"]["internals"] = ts
-        # NOTE: breadth (A/D, new highs/lows, %above MA) and put/call come from Barchart/YCharts,
-        # which block plain server requests; they stay on the 7:30 AM morning browser cycle.
+            # SMI intraday (Don Hays-style, self-computed)
+            series = mi["smi"].get("series", [])
+            if series:
+                val, inputs = spy_intraday_smi(series[-1]["value"])
+                if val is not None:
+                    mi["smi"]["intraday"] = val
+                    mi["smi"]["intradayAsOf"] = ts
+                    mi["smi"]["intradayInputs"] = inputs
+                    stages.append("smi")
+            data["ASOF"]["internals"] = ts
+            # NOTE: breadth (A/D, new highs/lows, %above MA) and put/call come from Barchart/YCharts,
+            # which block plain server requests; they stay on the 7:30 AM morning browser cycle.
 
-        # ================= STAGE 2: earnings expected moves (7-day window) =================
-        today = t0.date()
-        window = [e for e in data["EARNINGS_DATES"]
-                  if today <= dt.date.fromisoformat(e["date"]) <= today + dt.timedelta(days=7)]
-        n_em = 0
-        for e in window:
-            tkr = e["ticker"]
-            m = qmap.get(next((ys for ys, t in y2t.items() if t == tkr), tkr))
-            price = m[0] if m else None
-            if not price:
-                continue
-            mv = expected_move(next((ys for ys, t in y2t.items() if t == tkr), tkr), price)
-            if mv is not None:
-                e["expected_move"] = mv
-                e["move_as_of"] = today.isoformat()
-                if tkr in data.get("EXPECTED_MOVES", {}):
-                    data["EXPECTED_MOVES"][tkr]["move"] = mv
-                n_em += 1
-        if n_em:
-            data["ASOF"]["expectedMoves"] = ts
-            stages.append(f"expMoves({n_em})")
+            # ================= STAGE 2: earnings expected moves (7-day window) =================
+            today = t0.date()
+            window = [e for e in data["EARNINGS_DATES"]
+                      if today <= dt.date.fromisoformat(e["date"]) <= today + dt.timedelta(days=7)]
+            n_em = 0
+            for e in window:
+                tkr = e["ticker"]
+                m = qmap.get(next((ys for ys, t in y2t.items() if t == tkr), tkr))
+                price = m[0] if m else None
+                if not price:
+                    continue
+                mv = expected_move(next((ys for ys, t in y2t.items() if t == tkr), tkr), price)
+                if mv is not None:
+                    e["expected_move"] = mv
+                    e["move_as_of"] = today.isoformat()
+                    if tkr in data.get("EXPECTED_MOVES", {}):
+                        data["EXPECTED_MOVES"][tkr]["move"] = mv
+                    n_em += 1
+            if n_em:
+                data["ASOF"]["expectedMoves"] = ts
+                stages.append(f"expMoves({n_em})")
 
-        # ================= STAGE 3: overview quotes =================
-        quotes = {}
-        for ys, tkr in y2t.items():
-            m = qmap.get(ys)
-            if m:
-                p, prev = m[0], m[1]
-                quotes[tkr] = {"price": round(p, 2), "changePct": round((p - prev) / prev * 100, 2),
-                               "volume": m[2], "asof": ts}
-        data["QUOTES"] = quotes
-        data["ASOF"]["quotes"] = ts
-        stages.append(f"quotes({len(quotes)})")
+            # ================= STAGE 3: overview quotes =================
+            quotes = {}
+            for ys, tkr in y2t.items():
+                m = qmap.get(ys)
+                if m:
+                    p, prev = m[0], m[1]
+                    quotes[tkr] = {"price": round(p, 2), "changePct": round((p - prev) / prev * 100, 2),
+                                   "volume": m[2], "asof": ts}
+            data["QUOTES"] = quotes
+            data["ASOF"]["quotes"] = ts
+            stages.append(f"quotes({len(quotes)})")
 
-        # ---------- publish ----------
-        patch = {"MARKET_INTERNALS": mi, "SECTOR_BREADTH": data["SECTOR_BREADTH"],
-                 "EARNINGS_DATES": data["EARNINGS_DATES"], "EXPECTED_MOVES": data["EXPECTED_MOVES"],
-                 "QUOTES": quotes, "ASOF": data["ASOF"]}
-        patch_path = "/tmp/five-minute-patch.json"
-        json.dump(patch, open(patch_path, "w"))
-        r = subprocess.run(["python3", "scripts/update-data.py", patch_path], cwd=REPO,
-                           capture_output=True, text=True, timeout=60)
-        print(r.stdout.strip() or r.stderr.strip())
-        if r.returncode != 0:
-            log("ERROR update-data.py failed: " + r.stderr.strip()[:200])
-            return 1
-        version = json.load(open(REPO / "data.json"))["version"]
+            # ---------- publish ----------
+            patch = {"MARKET_INTERNALS": mi, "SECTOR_BREADTH": data["SECTOR_BREADTH"],
+                     "EARNINGS_DATES": data["EARNINGS_DATES"], "EXPECTED_MOVES": data["EXPECTED_MOVES"],
+                     "QUOTES": quotes, "ASOF": data["ASOF"]}
+            patch_path = "/tmp/five-minute-patch.json"
+            json.dump(patch, open(patch_path, "w"))
+            r = subprocess.run(["python3", "scripts/update-data.py", patch_path], cwd=REPO,
+                               capture_output=True, text=True, timeout=60)
+            print(r.stdout.strip() or r.stderr.strip())
+            if r.returncode != 0:
+                log("ERROR update-data.py failed: " + r.stderr.strip()[:200])
+                return 1
+            version = json.load(open(REPO / "data.json"))["version"]
 
-        git("add", "data.json")
-        git("commit", "-m", f"5-min refresh {t0.strftime('%Y-%m-%d %H:%M')} ET")
-        push = git("push")
-        push_status = "ok"
-        if push.returncode != 0:
-            git("pull", "--rebase")
+            git("add", "data.json")
+            git("commit", "-m", f"5-min refresh {t0.strftime('%Y-%m-%d %H:%M')} ET")
             push = git("push")
-            push_status = "ok-after-rebase" if push.returncode == 0 else "FAILED"
-        log(f"RUN stages={'+'.join(stages)} v={version} push={push_status}")
-        print(f"RUN stages={'+'.join(stages)} v={version} push={push_status}")
-        return 0 if push_status != "FAILED" else 1
-
+            push_status = "ok"
+            if push.returncode != 0:
+                git("pull", "--rebase")
+                push = git("push")
+                push_status = "ok-after-rebase" if push.returncode == 0 else "FAILED"
+            log(f"RUN stages={'+'.join(stages)} v={version} push={push_status}")
+            print(f"RUN stages={'+'.join(stages)} v={version} push={push_status}")
+            return 0 if push_status != "FAILED" else 1
+    except TimeoutError:
+        log("SKIP lock busy (another writer holds it; next run picks up)")
+        print("SKIP lock busy")
+        return 0
 
 if __name__ == "__main__":
     sys.exit(main())

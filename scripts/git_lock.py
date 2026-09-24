@@ -34,15 +34,35 @@ _fd = None
 
 
 @contextmanager
-def locked():
-    """Hold the shared data-update lock (reentrant in this process)."""
+def locked(timeout=None):
+    """Hold the shared data-update lock (reentrant in this process).
+
+    timeout=None blocks until the lock is free (default). With a timeout in
+    seconds, makes non-blocking attempts until the deadline, then raises
+    TimeoutError so a frequent lightweight writer can skip its slot instead
+    of piling up behind a long extraction.
+    """
     global _depth, _fd
     if _depth > 0 or os.environ.get(_ENV_FLAG) == "1":
         yield
         return
     LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
     _fd = open(LOCK_FILE, "w")
-    fcntl.flock(_fd, fcntl.LOCK_EX)  # blocks until the other writer finishes
+    if timeout is None:
+        fcntl.flock(_fd, fcntl.LOCK_EX)  # blocks until the other writer finishes
+    else:
+        import time
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                fcntl.flock(_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    _fd.close()
+                    _fd = None
+                    raise TimeoutError("stocksite data lock busy")
+                time.sleep(2)
     _depth += 1
     try:
         yield
