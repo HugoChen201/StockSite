@@ -218,6 +218,14 @@ def main():
             ys = s.get("yahoo_symbol") or s["ticker"]
             ysyms.append(ys)
             y2t[ys] = s["ticker"]
+        # also quote earnings-calendar names not in the watchlist (future-proof)
+        have_tickers = {s["ticker"] for s in data["STOCKS"]}
+        for e in data.get("EARNINGS_DATES", []):
+            t = e.get("ticker")
+            if t and t not in have_tickers:
+                ysyms.append(t)
+                y2t[t] = t
+                have_tickers.add(t)
         etf_list = [s["etf"] for s in data["SECTOR_BREADTH"]]
         qmap = batch_quotes(ysyms + ["^VIX", "^VIX3M"] + etf_list)
 
