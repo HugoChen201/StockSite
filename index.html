@@ -44,6 +44,12 @@
       </label>
       <select class="control" id="basketFilter" aria-label="Filter by basket"><option value="all" data-i18n="allBaskets">All baskets</option></select>
       <select class="control" id="sectorFilter" aria-label="Filter by sector"><option value="all" data-i18n="allSectors">All sectors</option></select>
+      <div class="seg" id="universeSeg" role="group" aria-label="Universe">
+        <button type="button" data-universe="watchlist" class="active"><span data-i18n="univWatchlist">Watchlist</span></button>
+        <button type="button" data-universe="sp100"><span data-i18n="univSP100">S&P 100</span></button>
+        <button type="button" data-universe="ndx"><span data-i18n="univNDX">Nasdaq 100</span></button>
+        <button type="button" data-universe="all"><span data-i18n="univAll">All</span></button>
+      </div>
       <div class="count" id="stockCount">63 stocks</div>
     </div>
     <p class="rank-note" data-i18n="rankNote">Composite score: 40% 20-session momentum percentile, 35% 20-session excess return vs SPY (−20 pp = 0, SPY = 50, +20 pp = 100), 25% volume activity percentile. Higher is better. Missing comparable volume defaults to neutral. 62 names currently have scores; SHOP is unavailable because fewer than 21 observations exist.</p>
@@ -59,6 +65,7 @@
           <th><button data-sort="sector"><span data-i18n="sector">Sector</span> <span>↕</span></button></th>
           <th class="num"><button data-sort="close"><span data-i18n="snapshotPrice">Snapshot price</span> <span>↕</span></button></th>
           <th class="num"><button data-sort="change"><span data-i18n="session">Session</span> <span>↕</span></button></th>
+          <th class="num hide-md"><button data-sort="volume"><span data-i18n="volume">Volume</span> <span>↕</span></button></th>
           <th class="num hide-md"><button data-sort="marketCap"><span data-i18n="marketCapAum">Market cap / AUM</span> <span>↕</span></button></th>
           <th class="num hide-md"><button data-sort="forwardPE"><span data-i18n="forwardPE">Forward P/E</span> <span>↕</span></button></th>
           <th class="num hide-md" data-i18n="weekRange">52-week range</th>

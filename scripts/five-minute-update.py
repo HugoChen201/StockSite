@@ -228,6 +228,13 @@ def main():
                     ysyms.append(t)
                     y2t[t] = t
                     have_tickers.add(t)
+            # also quote the extended universe (S&P 100 + Nasdaq-100, quotes-only tier);
+            # these land in QUOTES keyed by ticker for augmentUniverseStocks() in app.js
+            for t in data.get("UNIVERSE", {}):
+                if t not in have_tickers:
+                    ysyms.append(t)
+                    y2t[t] = t
+                    have_tickers.add(t)
             etf_list = [s["etf"] for s in data["SECTOR_BREADTH"]]
             qmap = batch_quotes(ysyms + ["^VIX", "^VIX3M"] + etf_list)
 
